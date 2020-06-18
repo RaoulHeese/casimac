@@ -57,4 +57,4 @@ Clone the repository and run the example code above to verify that it works.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE file](LICENSE) for details.
