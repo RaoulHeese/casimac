@@ -2,7 +2,7 @@
 
 CASIMAC stands for *Calibrated Simplex Mapping Classifier*.
 
-It is a multi-class/single-label classification algorithm, which allows the prediction of class labels and their probabilities. The classifier is designed along the principles of an [scitkit-learn](https://scikit-learn.org) estimator.
+It is a supervised multi-class/single-label classification algorithm, which allows the prediction of class labels and their probabilities. The classifier is designed along the principles of an [scitkit-learn](https://scikit-learn.org) estimator.
 
 ## Getting Started
 
