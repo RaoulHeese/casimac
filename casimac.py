@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""CASIMAC Classifier. 
+"""CASIMAC: multi-class/single-label classifier. 
 
 Author: Raoul Heese 
 
@@ -18,6 +18,7 @@ from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import pairwise_distances
 from sklearn.exceptions import NotFittedError
 from scipy.special import erf
+from scipy import optimize
 
 
 class CASIMAClassifier(BaseEstimator, ClassifierMixin):   
@@ -145,7 +146,7 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
     
     def _calc_class_normals(self, n):
         """Calculate vertices of an (n-1)-simplex, which are stored in the 
-        property ``_class_normals``.
+        attribute ``_class_normals`` during a call of ``fit``.
         """
         
         # Calculate class normals
@@ -160,6 +161,23 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         
         # Return class normals in rows: (vector 1, ..., vector n), each of dimension n-1
         return v.T
+    
+    def _calc_binary_projectors(self):
+        """Calculate binary projectors (normalized segmentation planes), 
+        which are used to obtain the decision function. They are stored in the 
+        attribute ``_binary_projectors`` during a call of ``fit``.
+        """
+        
+        # Calculate (normalized) binary projectors
+        bp = np.zeros((self._num_classes,self._num_classes,self._num_classes-1))
+        for i in range(self._num_classes):
+            for j in range(self._num_classes):
+                if i != j:
+                    bp[i,j,:] = self._class_normals[i,:]-self._class_normals[j,:]
+                    bp[i,j,:] /= np.linalg.norm(bp[i,j,:])
+        
+        # Return projectors as array [class i, class j, vector]
+        return bp
     
     def _calc_latent_coefficients(self, distance_to_own, distance_to_other_list):
         """Calculate coefficients (combined from repulsion and attraction 
@@ -216,18 +234,43 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
             d[X_class_idxa_list[class_idx]] = -np.tensordot(c.T,self._class_normals[other_class_idx_list,:],axes=1) # transformation
         return d
     
-    def _calc_distance_features_to_class(self, d):
-        """Map from distance feature space d to class space y.
-        Minimize distance to edge points to determine the correct classes.
+    def _calc_edge_distances(self, d):
+        """Calculate distances to edge points, which can be used to determine
+        the correct classes.
         """
         
         d = np.asarray(d).reshape(-1,self._num_classes-1)
         edge_distances = np.zeros((d.shape[0],self._num_classes))
         for j in range(self._num_classes):
             edge_distances[:,j] = np.linalg.norm(self._class_normals[j,:]-d, axis=1)
-        best_classes = np.array(np.argmin(edge_distances,axis=1),dtype=np.int64)
-        return np.array(self.classes_)[best_classes]
+        return edge_distances
+    
+    def _calc_distance_features_to_class(self, d):
+        """Map from distance feature space d to class space y.
+        Minimize distance to edge points to determine the correct classes.
+        """
         
+        best_classes = np.array(np.argmin(self._calc_edge_distances(d),axis=1),dtype=np.int64)
+        return np.array(self.classes_)[best_classes] 
+
+    def _calc_proba_analytical(self, mu, sigma, return_std):
+        """Calculate binary class probabilities (and their standard deviations)
+        with analytical formulas.
+        """
+
+        mu = mu.ravel()
+        sigma = sigma.ravel()
+        sigma[sigma==0] = np.nan
+        p_pos = (1+erf(mu/(np.sqrt(2)*sigma)))/2
+        p_pos[np.isnan(p_pos)] = (np.sign(mu[np.isnan(p_pos)])+1)/2
+        p_neg = 1 - p_pos
+        p = np.concatenate((p_pos[:,np.newaxis], p_neg[:,np.newaxis]), axis=1)
+        if return_std:
+            p_sigma = np.zeros(p.shape)
+            return p, p_sigma
+        else:
+            return p
+
     def _calc_proba_mc(self, mu, sigma, return_std, method):
         """Calculate (binary or multi-class) class probabilities (and their 
         standard devitions) with a Monte Carlo approach.
@@ -267,27 +310,6 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
             return p, p_sigma
         else:
             return p         
-    
-    def _calc_proba_analytical(self, mu, sigma, return_std):
-        """Calculate binary class probabilities (and their standard devitions)
-        with analytical formulas.
-        """
-        mu = mu.ravel()
-        sigma = sigma.ravel()
-        sigma[sigma==0] = np.nan # handle sigma = 0
-        p_pos = (1 + erf(np.abs(mu.ravel())/(np.sqrt(2)*sigma)))/2
-        p_pos[np.isnan(p_pos)] = 1 # handle sigma = 0
-        p_pos = p_pos.reshape(-1,1)
-        p_neg = np.zeros(p_pos.shape)
-        p_neg[mu < 0] = p_pos[mu < 0]
-        p_pos[mu < 0] = 1 - p_neg[mu < 0]
-        p_neg[mu >= 0] = 1 - p_pos[mu >= 0] # =0: bias towards pos class
-        p = np.concatenate((p_pos,p_neg), axis = 1)
-        if return_std:
-            p_sigma = np.zeros(p.shape)
-            return p, p_sigma
-        else:
-            return p
             
     def _calc_proba(self, mu, sigma, return_std):
         """Call suitable probability calculator depending on options.
@@ -309,6 +331,105 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
             return self._calc_proba_mc(mu, sigma, return_std, "simultaneous")
         else:
             raise NotImplementedError("Unknown probability calculation method '{}'!".format(self.proba_calc_method))
+            
+    def _calc_proba_grad_analytical(self, mu, sigma, dmu, dsigma):
+        """Calculate binary class probability gradients with analytical 
+        formulas.
+        """
+
+        mu = mu.ravel()
+        sigma = sigma.ravel()
+        sigma[sigma==0] = np.nan
+        dp_pos_mu = np.exp(-mu**2/(2*sigma**2))/(np.sqrt(2*np.pi)*sigma) # dp/dmu
+        dp_pos_mu[np.isnan(dp_pos_mu)] = 0 # ~ np.inf
+        dp_pos_sigma = -(mu*np.exp(-mu**2/(2*sigma**2)))/(np.sqrt(2*np.pi)*sigma**2) # dp/dsigma
+        dp_pos_sigma[np.isnan(dp_pos_sigma)] = 0 # ~ np.inf
+        dp_pos = dp_pos_mu[:,np.newaxis]*dmu[:,:,0] + dp_pos_sigma[:,np.newaxis]*dsigma[:,:,0] # dp
+        dp_neg = -dp_pos
+        return np.concatenate((dp_pos[:,:,np.newaxis],dp_neg[:,:,np.newaxis]), axis=2)
+    
+    def _calc_proba_grad_mc(self, mu, sigma, dmu, dsigma):
+        """Calculate (binary or multi-class) class probability gradients with a 
+        Monte Carlo approach.
+        
+        Note: this method is very experimental and not guaranteed to work!
+        """
+        
+        # Show warning message
+        warnings.warn("The function _calc_proba_grad_mc is very experimental, use with care!")
+        
+        # Perform gradient calculations
+        def mu_func(x, sample_idx, class_idx):
+            return self._calc_proba_mc(x, sigma[sample_idx,:].reshape(1,-1))[0,class_idx]
+        def sigma_func(x, sample_idx, class_idx):
+            return self._calc_proba_mc(mu[sample_idx,:].reshape(1,-1), x)[0,class_idx]
+        dp_mu = np.empty((mu.shape[0], self._num_classes, mu.shape[1])) # dp/dmu
+        for sample_idx in range(mu.shape[0]):
+            for class_idx in range(self._num_classes):
+                grad = optimize.approx_fprime(mu[sample_idx,:].reshape(1,-1), mu_func, self._dproba_eps, sample_idx, class_idx)
+                dp_mu[sample_idx, class_idx,:] = grad
+        dp_sigma = np.empty((mu.shape[0], self._num_classes, mu.shape[1])) # dp/dsigma
+        for sample_idx in range(mu.shape[0]):
+            for class_idx in range(self._num_classes):
+                grad = optimize.approx_fprime(sigma[sample_idx,:].reshape(1,-1), sigma_func, self._dproba_eps, sample_idx, class_idx)
+                dp_sigma[sample_idx, class_idx,:] = grad
+        dp = np.empty((mu.shape[0], dmu.shape[1], self._num_classes)) # dp
+        for var_idx in range(dmu.shape[1]):
+            for class_idx in range(self._num_classes):
+                dp[:,var_idx,class_idx] = np.sum(dp_mu[:,class_idx,:] * dmu[:,var_idx,:],axis=1) + np.sum(dp_sigma[:,class_idx,:] * dsigma[:,var_idx,:],axis=1) 
+        return dp
+    
+    def _calc_proba_grad(self, mu, sigma, dmu, dsigma):
+        """Call suitable probability gradient calculator depending on the 
+        number of classes.
+        """
+        
+        if self._num_classes == 2:
+            return self._calc_proba_grad_analytical(mu, sigma, dmu, dsigma)
+        else:
+            return self._calc_proba_grad_mc(mu, sigma, dmu, dsigma) 
+        
+    def _calc_decision_function(self, d_predict, return_idx_col_map):
+        """Calculate decision function.
+        """
+        
+        # determine decision borders for all class combinations
+        decision = np.zeros((d_predict.shape[0], self._num_classes*(self._num_classes-1)//2))
+        idx_col_map = []
+        for i in range(self._num_classes):
+            for j in range(self._num_classes):
+                if i < j:
+                    decision[:,len(idx_col_map)] = np.dot(d_predict, self._binary_projectors[i,j,:])
+                    idx_col_map.append((i,j))
+                    
+        # return results in a suitable format
+        if self._num_classes == 2:
+            return decision.ravel() # [n_sample]
+        else: # [n_sample, n_class * (n_class-1) / 2], border names in idx_col_map
+            if return_idx_col_map:
+                return decision, idx_col_map 
+            return decision
+        
+    def _calc_decision_function_grad(self, dmean, return_idx_col_map):
+        """Calculate gradient of the decision function.
+        """
+          
+        # determine decision border gradients for all class combinations
+        decision_grad = np.zeros((dmean.shape[0], dmean.shape[1], self._num_classes*(self._num_classes-1)//2))
+        idx_col_map = []
+        for i in range(self._num_classes):
+            for j in range(self._num_classes):
+                if i < j:
+                    decision_grad[:,:,len(idx_col_map)] = np.dot(dmean, self._binary_projectors[i,j,:])
+                    idx_col_map.append((i,j))
+                    
+        # return results in a suitable format
+        if self._num_classes == 2:
+            return decision_grad.reshape(dmean.shape[0], dmean.shape[1]) # [n_sample, n_var]
+        else: # [n_sample, n_var, n_class * (n_class-1) / 2], border names in idx_col_map
+            if return_idx_col_map:
+                return decision_grad, idx_col_map 
+            return decision_grad
             
     def _calc_default_tau(self, d):
         """Calculate the data-dependent scaling for transformations.
@@ -358,6 +479,7 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         if self._num_classes < 2:
             raise ValueError("At least 2 classes required!")
         self._class_normals = self._calc_class_normals(self._num_classes)
+        self._binary_projectors = self._calc_binary_projectors()
         
         # Prepare rng
         self.random_state_ = check_random_state(self.random_state)
@@ -447,6 +569,133 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         # Make model prediction
         mu, sigma = self.model_.predict(X, return_std=True)
         return self._calc_proba(mu, sigma, return_std)
+    
+    def predict_proba_grad(self, X):
+        """Return the gradient of the probability estimates with respect to the 
+        features. Requires a previous call of ``fit``.
+        
+        Note that it is assumed that the predictions of the regression model 
+        (stored in the attribute ``model_``) obey a Gaussian probability 
+        distribution. The ``predict`` method of the regression model must 
+        support a second argument ``return_std``, which returns the standard 
+        deviations of the predictions together with the mean values if set to 
+        True so that ``(mean, std) = model_.predict(X, return_std=True)``. 
+        Furthermore, the model must provide a function ``predict_grad``, which 
+        predicts the gradients of the ``(mean, std)`` predictions from the 
+        ``predict`` method with respect to the features in the same way so that
+        ``(dmean, dstd) = model_.predict_grad(X, return_std=True)``.
+        
+        Parameters
+        ----------
+        
+        X : array-like of shape (n_samples, n_features)
+            Query points where the classifier is evaluated.
+            
+        Returns
+        -------
+        
+        dp : array-like of shape (n_samples, n_features, n_classes)
+            Returns the gradient of the probability of the samples with respect 
+            to each feature for each class in the model.
+        """
+        
+        # Check if fitted
+        check_is_fitted(self, ['d_', 'y_'])
+        
+        # Check availability of gradients
+        if not hasattr(self.model_, 'predict_grad'):
+            raise NotImplementedError("Gradients not available: model does not provide a predict_grad function!")
+        
+        # Calculate gradients
+        mu, sigma = self.model_.predict(X, return_std=True)
+        dmean, dstd = self.model_.predict_grad(X, return_std=True)
+        return self._calc_proba_grad(mu, sigma, dmean, dstd)
+    
+    def decision_function(self, X, return_idx_col_map=False):
+        """Return the binary decision functions for the test vector X. Requires 
+        a previous call of ``fit``.
+        
+        Parameters
+        ----------
+        
+        X : array-like of shape (n_samples, n_features)
+            Query points where the classifier is evaluated.
+            
+        return_idx_col_map : bool, optional (default: False)
+            If True, ``idx_col_map`` is returned.
+            
+        Returns
+        -------
+        
+        d : array-like of shape (n_samples,) for a binary classification or 
+        (n_sample, n_class * (n_class-1) / 2) otherwise
+            Returns the decision functions in the form of an array of the form 
+            (first class index, second class index) sorted according to 
+            idx_col_map. In case of a binary classification problem, the 
+            returned array is flattened.
+            
+        idx_col_map : array-like of shape (n_class*(n_class-1)/2,), optional
+            List of tuples (first class index, second class index) to identify 
+            the contents of d for a multi-class classification. The indices 
+            correspond to the classes in sorted order, as they appear in the 
+            attribute ``classes_``.
+            Only returned when return_idx_col_map is True and there are more 
+            than two classes. In case of two classes, idx_col_map would always 
+            correspond to ((0,1),) and is therefore not returned.
+        """
+        
+        # Check if fitted
+        check_is_fitted(self, ['d_', 'y_'])
+        
+        # Make model prediction
+        d_predict = self.model_.predict(X)
+        
+        # Determine decision function (and optionally the idx_col_map)
+        return self._calc_decision_function(d_predict, return_idx_col_map)
+    
+    def decision_function_grad(self, X, return_idx_col_map=False):
+        """Return the gradient of the ecision function with respect to the
+        features. Requires a previous call of ``fit``.
+        
+        Note that it is assumed that the regression model (stored in the 
+        attribute ``model_``)  must provide a function ``predict_grad``, which 
+        predicts the gradients of the predictions with respect to the features.
+        
+        Parameters
+        ----------
+        
+        X : array-like of shape (n_samples, n_features)
+            Query points where the classifier is evaluated.
+            
+        return_idx_col_map : bool, optional (default: False)
+            If True, ``idx_col_map`` is returned.
+            
+        Returns
+        -------
+        
+        dd : array-like of shape (n_samples, n_fetaures) for a binary 
+        classification or (n_sample, n_features, n_class * (n_class-1) / 2) 
+        otherwise
+            Returns the gradient of the decision function with repect to the 
+            features.
+            
+        idx_col_map : array-like of shape (n_class*(n_class-1)/2,), optional
+            List of tuples (first class index, second class index) to identify 
+            the contents of d for a multi-class classification.
+            Only returned when return_idx_col_map is True and there are more 
+            than two classes.        
+        """
+        
+        # Check if fitted
+        check_is_fitted(self, ['d_', 'y_'])
+        
+        # Check availability of gradients
+        if not hasattr(self.model_, 'predict_grad'):
+            raise NotImplementedError("Gradients not available: model does not provide a predict_grad function!")
+        
+        # Calculate gradients
+        dmean = self.model_.predict_grad(X)
+        return self._calc_decision_function_grad(dmean, return_idx_col_map)
 
     def fit_transform(self, tau=None):
         """Transforms all latent space coordinates to the probability simplex 
