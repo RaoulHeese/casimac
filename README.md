@@ -55,6 +55,19 @@ The implementation is designed for Python 3. It depends on [scikit-learn](https:
 
 Clone the repository and run the example code above to verify that it works.
 
+### Reference
+
+The algorithm is an implementation from our paper "Calibrated Simplex Mapping Classification". Preprint available on [arXiv](https://arxiv.org/abs/2103.02926). If you find this code useful in your research, please consider citing:
+
+	@misc{heese2021calibrated,
+		  title={Calibrated Simplex Mapping Classification}, 
+		  author={Raoul Heese and Michał Walczak and Michael Bortz and Jochen Schmid},
+		  year={2021},
+		  eprint={2103.02926},
+		  archivePrefix={arXiv},
+		  primaryClass={stat.ML}
+	}
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE file](LICENSE) for details.
