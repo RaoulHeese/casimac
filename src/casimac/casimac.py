@@ -355,6 +355,8 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         Note: this method is very experimental and not guaranteed to work!
         """
         
+        # TODO: replace with more stable method
+        
         # Show warning message
         warnings.warn("The function _calc_proba_grad_mc is very experimental, use with care!")
         
