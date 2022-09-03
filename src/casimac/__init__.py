@@ -1,0 +1,1 @@
+from .casimac import CASIMAClassifier
