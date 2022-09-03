@@ -2,7 +2,15 @@
 CASIMAC: Calibrated Simplex Mapping Classifier
 **********************************************
 
-This Python project provides a supervised multi-class/single-label classification algorithm, which allows the prediction of class labels and their probabilities. The classifier is designed along the principles of an https://scikit-learn.org estimator.
+This Python project provides a supervised multi-class/single-label classification algorithm, which allows the prediction of class labels and their probabilities. The classifier is designed along the principles of an `scikit-learn <https://scikit-learn.org>`_ estimator. The details of the algorithm are published in `arXiv:2103.02926 <https://arxiv.org/abs/2103.02926>`_.
+
+**Installation**
+
+Install the package via pip or clone this repository. In order to use pip, type:
+
+.. code-block:: sh
+
+  $ pip install casimac
 
 **Getting Started**
 
@@ -44,20 +52,16 @@ Below is a short example.
   plt.ylabel("label / probability")
   plt.legend()
   plt.show()
+  
+As a result, the following plot will appear:
+  
+.. image:: plot.png
 
-Also implemented are a ``fit_transform`` method and an ``inverse_transform`` method to map the latent variables to a unit simplex and vice versa. These methods work only on an already fitted classifier object.
+Also implemented are a ``fit_transform`` method and an ``inverse_transform`` method to map the latent variables to a unit simplex and vice versa. These methods work only on an already fitted classifier object. Additional example notebooks can be found in the `examples` directory.
 
-**Prerequisites**
+📖 **Citation**
 
-The implementation is designed for Python 3. It depends on (https://scikit-learn.org/stable/install.html) of version 0.21.2 or higher and (https://www.scipy.org/install.html) of version 1.2.3 or higher. Also required are other standard packages.
-
-**Installation**
-
-Clone the repository and run the example code above to verify that it works.
-
-**Reference**
-
-The algorithm is an implementation from our paper "Calibrated Simplex Mapping Classification". Preprint available via https://arxiv.org/abs/2103.02926. If you find this code useful, please consider citing:
+If you find this code useful, please consider citing:
 
 .. code-block::
 
@@ -68,8 +72,8 @@ The algorithm is an implementation from our paper "Calibrated Simplex Mapping Cl
 		eprint={2103.02926},
 		archivePrefix={arXiv},
 		primaryClass={stat.ML}
-  }
+       }
 
 **License**
 
-This project is licensed under the MIT License - see the LICENSE file) for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
