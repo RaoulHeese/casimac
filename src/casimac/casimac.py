@@ -7,7 +7,7 @@ Created on Thu Jun 1 12:00:00 2020
 """
 
 
-__version__ = "1.0.0-dev"
+__version__ = "1.0"
 
 
 import numpy as np
