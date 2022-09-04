@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-"""CASIMAC: multi-class/single-label classifier. 
+"""CASIMAC: multi-class/single-label classifier with gradients. 
 
-Author: Raoul Heese 
-
-Created on Thu Jun 1 12:00:00 2020
+Author: Raoul Heese
 """
 
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 
 import warnings
@@ -45,7 +43,7 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
     repulsion_number : int, optional (default: 1)
         Number of nearest neighbors used for the repulsion term.   
         
-    repulsion_reduce : callable, optional  (default: numpy.nanmean)
+    repulsion_reduce : callable, optional (default: numpy.nanmean)
         Function to reduce the set of nearest neighbor distances to a single 
         number used in the repulsion term. Note that numpy.nan may occur in the 
         list of distances.
@@ -61,7 +59,7 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
     attraction_number : int, optional (default: 1)
         Number of nearest neighbors used for the attraction term.    
         
-    attraction_reduce : callable, optional  (default: numpy.nanmean)
+    attraction_reduce : callable, optional (default: numpy.nanmean)
         Function to reduce the set of nearest neighbor distances to a single 
         number used in the attraction term. Note that numpy.nan may occur in the 
         list of distances.        
