@@ -7,11 +7,11 @@ Created on Thu Jun 1 12:00:00 2020
 """
 
 
-__version__ = "1.0"
+__version__ = "1.2.0"
 
 
-import numpy as np
 import warnings
+import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_X_y, check_is_fitted, check_random_state
 from sklearn.utils.multiclass import unique_labels
@@ -45,9 +45,9 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
     repulsion_number : int, optional (default: 1)
         Number of nearest neighbors used for the repulsion term.   
         
-    repulsion_reduce : callable, optional  (default: np.nanmean)
+    repulsion_reduce : callable, optional  (default: numpy.nanmean)
         Function to reduce the set of nearest neighbor distances to a single 
-        number used in the repulsion term. Note that np.nan may occur in the 
+        number used in the repulsion term. Note that numpy.nan may occur in the 
         list of distances.
         
     repulsion_fun : callable or None, optional (default: None)
@@ -61,12 +61,12 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
     attraction_number : int, optional (default: 1)
         Number of nearest neighbors used for the attraction term.    
         
-    attraction_reduce : callable, optional  (default: np.nanmean)
+    attraction_reduce : callable, optional  (default: numpy.nanmean)
         Function to reduce the set of nearest neighbor distances to a single 
-        number used in the attraction term. Note that np.nan may occur in the 
+        number used in the attraction term. Note that numpy.nan may occur in the 
         list of distances.        
         
-    attraction_fun : callable or None, optional (default: np.reciprocal)
+    attraction_fun : callable or None, optional (default: numpy.reciprocal)
         Final function that is applied to the attraction term. Set to None to 
         disable the function call.    
         
@@ -650,6 +650,8 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         
         # Make model prediction
         d_predict = self.model_.predict(X)
+        if len(d_predict.shape) == 1: # ensure correct shape of model output
+            d_predict = d_predict[:,None]
         
         # Determine decision function (and optionally the idx_col_map)
         return self._calc_decision_function(d_predict, return_idx_col_map)
