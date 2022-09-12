@@ -70,12 +70,12 @@ If you find this code useful, please consider citing:
 .. code-block::
 
   @misc{heese2021calibrated,
-		title={Calibrated Simplex Mapping Classification}, 
-		author={Raoul Heese and Micha{\l} Walczak and Michael Bortz and Jochen Schmid},
-		year={2021},
-		eprint={2103.02926},
-		archivePrefix={arXiv},
-		primaryClass={stat.ML}
+        title={Calibrated Simplex Mapping Classification}, 
+        author={Raoul Heese and Micha{\l} Walczak and Michael Bortz and Jochen Schmid},
+        year={2021},
+        eprint={2103.02926},
+        archivePrefix={arXiv},
+        primaryClass={stat.ML}
        }
 
 **License**
