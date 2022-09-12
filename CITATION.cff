@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Heese"
+  given-names: "Raoul"
+  orcid: "https://orcid.org/0000-0001-7479-3339"
+title: "CASIMAC"
+version: 1.2.1
+date-released: 2022-09-04
+url: "https://readthedocs.org/projects/casimac"
+preferred-citation:
+  type: article
+  authors:
+  - family-names: "Heese"
+    given-names: "Raoul"
+  - family-names: "Walczak"
+    given-names: "Michal"
+  - family-names: "Bortz"
+    given-names: "Michael"	
+  - family-names: "Schmid"
+    given-names: "Jochen"		
+  journal: "arXiv"
+  title: "Calibrated Simplex Mapping Classification"
+  year: 2021
+  url: "https://arxiv.org/abs/2103.02926"
