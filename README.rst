@@ -5,6 +5,14 @@ CASIMAC: Calibrated Simplex Mapping Classifier
 .. image:: https://readthedocs.org/projects/casimac/badge/?version=latest
     :target: https://casimac.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+	
+.. image:: https://img.shields.io/pypi/v/casimac
+    :target: https://pypi.org/project/casimac/
+    :alt: PyPI - Project
+	
+.. image:: https://img.shields.io/badge/license-MIT-lightgrey
+    :target: https://github.com/RaoulHeese/casimac/blob/main/LICENSE
+    :alt: MIT License	
 
 This Python project provides a supervised multi-class/single-label classification algorithm, which allows the prediction of class labels and their probabilities including gradients with respect to features. The classifier is designed along the principles of an `scikit-learn <https://scikit-learn.org>`_ estimator.
 
