@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """CASIMAC: multi-class/single-label classifier with gradients. 
-
-Author: Raoul Heese
 """
 
 
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 
 import warnings
@@ -14,7 +12,6 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_X_y, check_is_fitted, check_random_state
 from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import pairwise_distances
-from sklearn.exceptions import NotFittedError
 from scipy.special import erf
 from scipy import optimize
 
@@ -37,47 +34,24 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         probability distribution with the aforementioned mean and variance.
         
     repulsion_strength : float, optional (default: 1)
-        Scalar strength used for the repulsion term. Should be non-negative. 
-        Choose 0 to disable repulsions.
+        Scalar strength used for the repulsion term (``beta``). Should be 
+        non-negative. Choose 0 to disable repulsions.
         
     repulsion_number : int, optional (default: 1)
-        Number of nearest neighbors used for the repulsion term.   
-        
-    repulsion_reduce : callable, optional (default: numpy.nanmean)
-        Function to reduce the set of nearest neighbor distances to a single 
-        number used in the repulsion term. Note that numpy.nan may occur in the 
-        list of distances.
-        
-    repulsion_fun : callable or None, optional (default: None)
-        Final function that is applied to the repulsion term.  Set to None to 
-        disable the function call.
+        Number of nearest neighbors used for the repulsion term (``k_beta``).    
         
     attraction_strength : float, optional (default: 1)
-        Scalar strength used for the attraction term. Should be non-negative. 
-        Choose 0 to disable attraction.
+        Scalar strength used for the attraction term (``alpha``). Should be 
+        non-negative. Choose 0 to disable attraction.
         
     attraction_number : int, optional (default: 1)
-        Number of nearest neighbors used for the attraction term.    
-        
-    attraction_reduce : callable, optional (default: numpy.nanmean)
-        Function to reduce the set of nearest neighbor distances to a single 
-        number used in the attraction term. Note that numpy.nan may occur in the 
-        list of distances.        
-        
-    attraction_fun : callable or None, optional (default: numpy.reciprocal)
-        Final function that is applied to the attraction term. Set to None to 
-        disable the function call.    
-        
-    c_transformation_fun : callable or None, optional (default: None)
-        Optional transformtion function (e.g., for rescaling) of the latent 
-        variable coefficients. Set to None to disable the function call.        
+        Number of nearest neighbors used for the attraction term (``k_alpha``).    
     
     metric : str or callable, optional (default: 'euclidean')
         Metric options used in ``sklearn.metrics.pairwise_distances``. See the 
         respective documentation for more details.
     
-    proba_calc_method : 'analytical', 'MC' or 'MC-fast', optional (default: 
-        'analytical')
+    proba_calc_method : 'analytical', 'MC' or 'MC-fast', optional (default: 'analytical')
         Determines the method used for the prediction of class probabilities. 
         Choose 'analytical' for an analytical calculation (can only be used 
         for two classes, otherwise fall back to 'MC'). Choose 'MC' for a 
@@ -89,13 +63,36 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         Number of Monte Carlo samples (per dimension) for the prediciton of 
         class probabilities.
         
+    p_calc_method: 'iterative', 'explicit', optional (default: 'iterative')
+        Determines the method for the calculation of the simplex vectors.
+        
     random_state : int, RandomState instance or None, optional (default: None)
         The random generator to use for the prediction of class probabilities. 
         If an integer is given, a new random generator with this seed is 
-        created.
+        created. ``None`` leads to a newly generated seed.
         
-    verbose : bool, optional (default: None)
-        Set to true to enable diagnostic messages. Currently not implemented.
+    l_repulsion_reduce : callable, optional (default: numpy.nanmean)
+        Legacy option, not recommended! Function to reduce the set of nearest 
+        neighbor distances to a single number used in the repulsion term. Note 
+        that numpy.nan may occur in the list of distances.
+        
+    l_repulsion_fun : callable or None, optional (default: None)
+        Legacy option, not recommended! Final function that is applied to the 
+        repulsion term. Set to ``None`` to disable the function call. 
+        
+    l_attraction_reduce : callable, optional (default: numpy.nanmean)
+        Legacy option, not recommended! Function to reduce the set of nearest 
+        neighbor distances to a single number used in the attraction term. Note 
+        that numpy.nan may occur in the list of distances.        
+        
+    l_attraction_fun : callable or None, optional (default: numpy.reciprocal)
+        Legacy option, not recommended! Final function that is applied to the 
+        attraction term. Set to ``None`` to disable the function call.    
+        
+    l_c_transformation_fun : callable or None, optional (default: None)
+        Legacy option, not recommended! Optional transformtion function (e.g., 
+        for rescaling) of the latent variable coefficients. Set to ``None`` to 
+        disable the function call.   
         
     Attributes
     ----------
@@ -121,30 +118,49 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         the class probabilities.
     """
     
-    def __init__(self, model_constructor, repulsion_strength=1, repulsion_number=1, 
-                 repulsion_reduce=np.nanmean, repulsion_fun=None, attraction_strength=0,
-                 attraction_number=1, attraction_reduce=np.nanmean, attraction_fun=np.reciprocal,
-                 c_transformation_fun=None, metric='euclidean', proba_calc_method='analytical',
-                 proba_NMC=1000, random_state=None, verbose=False):
+    def __init__(self, model_constructor,
+                 repulsion_strength=1, repulsion_number=1, 
+                 attraction_strength=0, attraction_number=1, 
+                 metric='euclidean', proba_calc_method='analytical',
+                 proba_NMC=1000, p_calc_method='iterative', random_state=None,
+                 l_repulsion_reduce=np.nanmean, l_repulsion_fun=None,
+                 l_attraction_reduce=np.nanmean, l_attraction_fun=np.reciprocal,
+                 l_c_transformation_fun=None):
+        
+        # Settings
         self.model_constructor = model_constructor
         self.repulsion_strength = repulsion_strength
         self.repulsion_number = repulsion_number
-        self.repulsion_reduce = repulsion_reduce
-        self.repulsion_fun = repulsion_fun
         self.attraction_strength = attraction_strength
         self.attraction_number = attraction_number
-        self.attraction_reduce = attraction_reduce
-        self.attraction_fun = attraction_fun
-        self.c_transformation_fun = c_transformation_fun
         self.metric = metric
         self.proba_calc_method = proba_calc_method # [MC, MC-fast, analytical]
         self.proba_NMC = proba_NMC # per dimension
+        self.p_calc_method = p_calc_method
         self.random_state = random_state
-        self.verbose = verbose
-    
+        self.repulsion_reduce = l_repulsion_reduce
+        self.repulsion_fun = l_repulsion_fun
+        self.attraction_reduce = l_attraction_reduce
+        self.attraction_fun = l_attraction_fun
+        self.c_transformation_fun = l_c_transformation_fun
+            
     def _calc_class_normals(self, n):
-        """Calculate vertices of an (n-1)-simplex, which are stored in the 
-        attribute ``_class_normals`` during a call of ``fit``.
+        """Calculate class normals (i.e., the negative vertices) of an 
+        (n-1)-simplex. The results are stored in the attribute 
+        ``_class_normals`` during a call of ``fit``.
+        """        
+        
+        # Choose calculation method
+        if self.p_calc_method == 'iterative':
+            return self._calc_class_normals_iterative(n)
+        elif self.p_calc_method == 'explicit':
+            return self._calc_class_normals_explicit(n)
+        else:
+            raise NotImplementedError("Unknown class normal calculation method '{}'!".format(self.p_calc_method))
+    
+    def _calc_class_normals_iterative(self, n):
+        """Calculate the class normals (i.e., the negative vertices) of an 
+        (n-1)-simplex using an iterative method.
         """
         
         # Calculate class normals
@@ -160,6 +176,25 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         # Return class normals in rows: (vector 1, ..., vector n), each of dimension n-1
         return v.T
     
+    def _calc_class_normals_explicit(self, n):
+        """Calculate the class normals (i.e., the negative vertices) of an 
+        (n-1)-simplex using an explicit method.
+        """
+        
+        # Calculate simplex vertices
+        q = np.zeros((n,n-1))
+        for i in range(1,n):
+            q[i-1,i-1] = 1
+        q[n-1,:] = (1+np.sqrt(n))/(n-1)
+        v = np.empty((n,n-1))
+        c = (1+1/np.sqrt(n))/(n-1)
+        nu = np.sqrt(1-1/n)
+        for i in range(1,n+1):
+            v[i-1,:] = (q[i-1] - c) / nu
+        
+        # Return class normals in rows: (vector 1, ..., vector n), each of dimension n-1
+        return -v
+
     def _calc_binary_projectors(self):
         """Calculate binary projectors (normalized segmentation planes), 
         which are used to obtain the decision function. They are stored in the 
@@ -248,7 +283,7 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         Minimize distance to edge points to determine the correct classes.
         """
         
-        best_classes = np.array(np.argmin(self._calc_edge_distances(d),axis=1),dtype=np.int64)
+        best_classes = np.array(np.argmin(self._calc_edge_distances(d),axis=1),dtype=np.int64) # return first minimum by default
         return np.array(self.classes_)[best_classes] 
 
     def _calc_proba_analytical(self, mu, sigma, return_std):
@@ -350,7 +385,9 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         """Calculate (binary or multi-class) class probability gradients with a 
         Monte Carlo approach.
         
-        Note: this method is very experimental and not guaranteed to work!
+        Notes:
+            1) This method is very experimental and not guaranteed to work.
+            2) A more stable method should be used instead.
         """
         
         # TODO: replace with more stable method
@@ -430,13 +467,58 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
             if return_idx_col_map:
                 return decision_grad, idx_col_map 
             return decision_grad
-            
-    def _calc_default_tau(self, d):
-        """Calculate the data-dependent scaling for transformations.
+        
+    def _transform_ref(self, d, tau):
+        """Calculate the reference transformation.
         """
         
-        return 1/np.min(np.std(d,axis=0))            
+        projections = np.zeros((d.shape[0],self._num_classes))
+        for i in range(self._num_classes):
+            projections[:,i] = np.dot(d*tau,self._class_normals[i,:])
+        transformed_projections = np.exp(projections)
+        unit_simplex_norm = np.repeat(np.sum(transformed_projections,axis=1),self._num_classes).reshape((d.shape[0],self._num_classes))
+        s = transformed_projections / unit_simplex_norm
+        return s
+    
+    def _transform_scale(self, d, tau):
+        """Calculate the scale transformation.
+        """
+        
+        s = np.zeros((d.shape[0],self._num_classes))
+        for j in range(d.shape[0]):
+            exp_list = [np.exp(-1*tau*np.dot(self._class_normals[i,:],d[j,:])) for i in range(self._num_classes)]
+            s[j,:] = np.array(exp_list) / np.sum(exp_list)
+        return s    
 
+    def _inverse_transform_ref(self, s, tau):
+        """Calculate the inverse reference transformation.
+        """
+        
+        d = np.zeros((s.shape[0],self._num_classes-1))
+        projections = np.log(s) # shifted by np.sum(shifted_projections, axis=1)/self._num_classes (however, this shift is eliminated by summing over the outer product)
+        projection_normal = (self._num_classes-1)/self._num_classes
+        for i in range(self._num_classes):
+            d += np.outer(projections[:,i],self._class_normals[i,:])
+        d *= projection_normal / tau
+        return d
+
+    def _inverse_transform_scale(self, s, tau):
+        """Calculate the inverse scale transformation.
+        """
+        
+        d = np.zeros((s.shape[0], self._num_classes-1))
+        for j in range(s.shape[0]):
+            for i in range(self._num_classes):
+                d[j,:] -= np.log(s[j,i])*self._class_normals[i,:]
+        d *= (self._num_classes-1)/(tau*self._num_classes)
+        return d   
+    
+    def _calc_default_tau(self, d):
+        """Calculate the data-dependent scaling factor for transformations.
+        """
+        
+        return 1/np.min(np.std(d,axis=0))     
+    
     def fit(self, X, y, d=None):
         """Fit Classifier.
          
@@ -457,10 +539,10 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         y : array-like of shape (n_samples,)
             Target labels of training data.
             
-        d : latent variables, array-like of shape (n_samples, n_classes-1) 
-            or None, optional (default: None)
-            Precalculated vector of latent variables. Set to None to calculate 
-            d automatically based on X and y.
+        d : latent variables, array-like of shape (n_samples, n_classes-1) or None, optional (default: None)
+            Precalculated vector of latent variables. Set to ``None`` to 
+            calculate ``d`` automatically based on ``X`` and ``y`` 
+            (recommended).
             
         Returns
         -------
@@ -669,7 +751,7 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
             Query points where the classifier is evaluated.
             
         return_idx_col_map : bool, optional (default: False)
-            If True, ``idx_col_map`` is returned.
+            If ``True``, ``idx_col_map`` is returned.
             
         Returns
         -------
@@ -696,49 +778,34 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         dmean = self.model_.predict_grad(X)
         return self._calc_decision_function_grad(dmean, return_idx_col_map)
 
-    def fit_transform(self, tau=None):
-        """Transforms all latent space coordinates to the probability simplex 
-        space (dimensions+1). This corresponds to ``transform(self.d_, tau)``. 
-        Also store the scaling factor in the attribute ``tau_``. Requires a 
-        previous call of ``fit``.
+    def fit_transform(self, X, y, d=None, tau=None, method='reference'):
+        """Fit the model and transforms all latent space coordinates to another 
+        simplex space (dimensions+1). Also store the scaling factor 
+        in the attribute ``tau_``. Requires a previous call of ``fit``.
         
         Parameters
         ----------
+        
+        X : array-like of shape (n_samples, n_features)
+            Feature vectors of training data.
+            
+        y : array-like of shape (n_samples,)
+            Target labels of training data.
+            
+        d : latent variables, array-like of shape (n_samples, n_classes-1) or None, optional (default: None)
+            Precalculated vector of latent variables. Set to ``None`` to 
+            calculate ``d`` automatically based on ``X`` and ``y`` 
+            (recommended).        
             
         tau : float or None, optional (default: None)
-            Scaling factor. If set to None, a data-dependent scaling is used.
+            Scaling factor > 0. If set to ``None``, a data-dependent scaling 
+            is used (and returned).
             
-        Returns
-        -------
-        
-        s : array-like of shape (n_samples, n_classes+1)
-            Simplex vector space coordinates as a representation of the 
-            attribute ``d_``.
-        """
-
-        # Check if fitted
-        check_is_fitted(self, ['d_', 'y_']) 
-        
-        # Perform transformation and store results
-        unit_simplex, tau = self.transform(self.d_, tau, return_tau=True)
-        self.tau_ = tau
-        return unit_simplex
-    
-    def transform(self, d, tau=None, return_tau=False):
-        """Transform latent space coordinates to the probability simplex space 
-        (dimensions+1). Requires a previous call of ``fit``.
-        
-        Parameters
-        ----------
-
-        d : array-like of shape (n_samples, n_classes)
-            Latent space coordinates to transform.
-        
-        tau : float or None, optional (default: None)
-            Scaling factor. If set to None, a data-dependent scaling is used.
-            
-        return_tau : bool, optional (default: False)
-            If set to True, return the used scaling factor.
+        method: 'reference' or 'scale', optional (default: 'reference')
+            Determines the transformation method. 'reference': transformation 
+            of the simplex into rotated cones highlighting the inter-class 
+            distances (default method for visualization). 'scale': rescaling 
+            of the simplex to a unit simplex.
             
         Returns
         -------
@@ -749,56 +816,137 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
             
         tau : float
             Scaling factor used for the transformation.
-            Only returned when return_tau is True.  
+            Only returned when ``tau`` is set to ``None``.
+        """
+
+        # Fit
+        self.fit(X, y, d=d)
+        
+        # Perform transformation
+        return self.transform(self.d_, tau, method)
+    
+    def transform(self, d, tau=None, method='reference'):
+        """Transform latent space coordinates to another simplex space 
+        (dimensions+1). Requires a previous call of ``fit``.
+        
+        Parameters
+        ----------
+
+        d : array-like of shape (n_samples, n_classes)
+            Latent space coordinates to transform.
+        
+        tau : float or None, optional (default: None)
+            Scaling factor > 0. If set to ``None``, a data-dependent scaling 
+            is used (and returned).
+            
+        method: 'reference' or 'scale', optional (default: 'reference')
+            Determines the transformation method. 'reference': transformation 
+            of the simplex into rotated cones highlighting the inter-class 
+            distances (default method for visualization). 'scale': rescaling 
+            of the simplex to a unit simplex.
+
+        Returns
+        -------
+        
+        s : array-like of shape (n_samples, n_classes+1)
+            Reference simplex vector space coordinates as a representation of 
+            the attribute ``d_``.
+            
+        tau : float
+            Scaling factor used for the transformation.
+            Only returned when ``tau`` is set to ``None``. 
         """        
         
         # Check if fitted
         check_is_fitted(self, ['d_', 'y_']) 
         
-        # Perform transformation
+        # Determine tau
         if tau is None: # use default data-dependent scaling
             tau = self._calc_default_tau(d)
-        projections = np.zeros((d.shape[0],self._num_classes))
-        for i in range(self._num_classes):
-            projections[:,i] = np.dot(d*tau,self._class_normals[i,:])
-        transformed_projections = np.exp(projections)
-        unit_simplex_norm = np.repeat(np.sum(transformed_projections,axis=1),self._num_classes).reshape((d.shape[0],self._num_classes))
-        unit_simplex = transformed_projections / unit_simplex_norm
+            return_tau = True
+        else:
+            return_tau = False
+        
+        # Choose transformation method
+        if method == 'reference':
+            s = self._transform_ref(d, tau)
+        elif method == 'scale':
+            s = self._transform_scale(d, tau)
+        else:
+            raise NotImplementedError("Unknown transformation method '{}'!".format(method))
+          
+        # Return results
         if return_tau:
-            return unit_simplex, tau
-        return unit_simplex
+            return s, tau
+        return s
 
-    def inverse_transform(self, s, tau=None):
-        """Transform back from the probability simplex space to the latent 
+    def inverse_transform(self, s, tau, method='reference'):
+        """Transform back from the transformed simplex space to the latent 
         space. Requires a previous call of ``fit``.
         
         Parameters
         ----------
            
         s : array-like of shape (n_samples, n_classes+1)
-            Simplex vector space coordinates to transform.
+            Reference simplex vector space coordinates to transform.
             
-        tau : float or None, optional (default: None)
-            Scaling factor. If set to None, the previously fitted scaling from 
-            ``fit_transform`` is used, which is stored in the attribute 
-            ``tau_``.         
+        tau : float
+            Scaling factor > 0.
+            
+        method: 'reference' or 'scale', optional (default: 'reference')
+            Determines the transformation method. 'reference': transformation 
+            of the simplex into rotated cones highlighting the inter-class 
+            distances (default method for visualization). 'scale': rescaling 
+            of the simplex to a unit simplex.         
             
         Returns
         -------
         
         d : array-like of shape (n_samples, n_classes)
-            Inverse transformation of the simplex vector space coordinates s.
+            Inverse transformation of the reference simplex vector space 
+            coordinates ``s``.
         """
         
-        check_is_fitted(self, ['d_', 'y_'])   
-        if tau is None: # use previously fitted scaling
-            if not hasattr(self, 'tau_'):
-                raise NotFittedError("The transformation is not fitted yet. Call 'fit_transform' with appropriate arguments or provide a fixed value for tau.")
-            tau = self.tau_
-        d = np.zeros((s.shape[0],self._num_classes-1))
-        projections = np.log(s) # shifted by np.sum(shifted_projections, axis=1)/self._num_classes (however, this shift is eliminated by summing over the outer product)
-        projection_normal = (self._num_classes-1)/self._num_classes
-        for i in range(self._num_classes):
-            d += np.outer(projections[:,i],self._class_normals[i,:])
-        d *= projection_normal / tau
-        return d
+        # Check if fitted
+        check_is_fitted(self, ['d_', 'y_'])  
+        
+        # Choose transformation method
+        if method == 'reference':
+            return self._inverse_transform_ref(s, tau)
+        elif method == 'scale':
+            return self._inverse_transform_scale(s, tau)
+        else:
+            raise NotImplementedError("Unknown transformation method '{}'!".format(method))  
+        
+    def train(self, X, y, d=None):    
+        """Alias for ``fit`` for backward compatibility, see there.
+        """
+        
+        return self.fit(X, y, d=d)
+    
+    
+    def predict_class_label(self, X):    
+        """Alias for ``predict`` for backward compatibility, see there.
+        """
+        
+        return self.predict(X)
+
+    def predict_class_label_probability(self, X, return_std=False): 
+        """Alias for ``predict_proba`` for backward compatibility, see there.
+        """
+        
+        return self.predict_proba(X, return_std=return_std)
+    
+    def inflate(self, d, tau=None):    
+        """Alias for ``transform`` with ``method='reference'`` for backward 
+        compatibility, see there.
+        """
+        
+        return self.transform(d, tau=None, method='reference')
+    
+    def compress(self, s, tau):    
+        """Alias for ``inverse_transform`` with ``method='reference`` for 
+        backward compatibility, see there.
+        """
+        
+        return self.inverse_transform(s, tau, method='reference')
