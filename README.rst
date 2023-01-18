@@ -1,5 +1,5 @@
 **********************************************
-CASIMAC: Calibrated Simplex Mapping Classifier
+CASIMAC: Calibrated Simplex-Mapping Classifier
 **********************************************
 
 .. image:: https://readthedocs.org/projects/casimac/badge/?version=latest
@@ -17,11 +17,11 @@ CASIMAC: Calibrated Simplex Mapping Classifier
 .. image:: https://raw.githubusercontent.com/RaoulHeese/casimac/master/docs/source/_static/simplex.png
     :align: center
 	
-This Python project provides a supervised multi-class/single-label classification algorithm, which allows the prediction of class labels and their probabilities including gradients with respect to features. The classifier is designed along the principles of an `scikit-learn <https://scikit-learn.org>`_ estimator.
+This Python project provides a supervised multi-class classification algorithm with a focus on calibration, which allows the prediction of class labels and their probabilities including gradients with respect to features. The classifier is designed along the principles of an `scikit-learn <https://scikit-learn.org>`_ estimator. 
 
-The details of the algorithm have been published in `arXiv:2103.02926 <https://arxiv.org/abs/2103.02926>`_.
+The details of the algorithm have been published in `PLOS ONE <https://doi.org/10.1371/journal.pone.0279876>`_ (preprint: `arXiv:2103.02926 <https://arxiv.org/abs/2103.02926>`_).
 
-Complete documentation of the code is available via `<https://casimac.readthedocs.io/en/latest/>`_.
+Complete documentation of the code is available via `<https://casimac.readthedocs.io/en/latest/>`_. Example notebooks can be found in the `examples` directory.
 
 **Installation**
 
@@ -41,12 +41,11 @@ Below is a short example.
 
   from casimac import CASIMAClassifier
   
-  # Third party packages
   import numpy as np
   from sklearn.gaussian_process import GaussianProcessRegressor
   import matplotlib.pyplot as plt
   
-  # Create data
+  # Create toy data
   N = 10
   seed = 42
   X = np.random.RandomState(seed).uniform(-10,10,N).reshape(-1,1)
@@ -72,22 +71,25 @@ Below is a short example.
   plt.legend()
   plt.show()
 
-Also implemented are a ``fit_transform`` method and an ``inverse_transform`` method to map the latent variables to a unit simplex and vice versa. These methods work only on an already fitted classifier object. Example notebooks can be found in the `examples` directory.
-
 📖 **Citation**
 
 If you find this code useful, please consider citing:
 
 .. code-block::
-
-  @misc{heese2021calibrated,
-        title={Calibrated Simplex Mapping Classification}, 
-        author={Raoul Heese and Micha{\l} Walczak and Michael Bortz and Jochen Schmid},
-        year={2021},
-        eprint={2103.02926},
-        archivePrefix={arXiv},
-        primaryClass={stat.ML}
-       }
+	 
+  @article{10.1371/journal.pone.0279876,
+        doi={10.1371/journal.pone.0279876},
+        author={Heese, Raoul and Schmid, Jochen and Walczak, Micha{\l} and Bortz, Michael},
+        journal={PLOS ONE},
+        publisher={Public Library of Science},
+        title={Calibrated simplex-mapping classification},
+        year={2023},
+        month={01},
+        volume={18},
+        url={https://doi.org/10.1371/journal.pone.0279876},
+        pages={1-26},
+        number={1}
+	}
 
 **License**
 
