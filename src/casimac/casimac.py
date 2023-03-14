@@ -3,7 +3,7 @@
 """
 
 
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 
 
 import warnings
@@ -138,11 +138,11 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
         self.proba_NMC = proba_NMC # per dimension
         self.p_calc_method = p_calc_method
         self.random_state = random_state
-        self.repulsion_reduce = l_repulsion_reduce
-        self.repulsion_fun = l_repulsion_fun
-        self.attraction_reduce = l_attraction_reduce
-        self.attraction_fun = l_attraction_fun
-        self.c_transformation_fun = l_c_transformation_fun
+        self.l_repulsion_reduce = l_repulsion_reduce # legacy option
+        self.l_repulsion_fun = l_repulsion_fun # legacy option
+        self.l_attraction_reduce = l_attraction_reduce # legacy option
+        self.l_attraction_fun = l_attraction_fun # legacy option
+        self.l_c_transformation_fun = l_c_transformation_fun # legacy option
             
     def _calc_class_normals(self, n):
         """Calculate class normals (i.e., the negative vertices) of an 
@@ -232,24 +232,24 @@ class CASIMAClassifier(BaseEstimator, ClassifierMixin):
             #for idx in range(len(distance_to_other_list)):
             #    distance_to_other_list[idx][distance_to_other_list[idx]<=0] = np.nan # remove invalids
             idx_list = [np.argpartition(d, min(self.repulsion_number, d.shape[1]-1), axis=1) for d in distance_to_other_list]
-            repulse = np.array([[self.repulsion_reduce(d[i[:self.repulsion_number]]) for i, d in zip(idx,distances)] for idx, distances in zip(idx_list,distance_to_other_list) ])
-            if self.repulsion_fun is not None:
-                repulse = self.repulsion_fun(repulse)
+            repulse = np.array([[self.l_repulsion_reduce(d[i[:self.repulsion_number]]) for i, d in zip(idx,distances)] for idx, distances in zip(idx_list,distance_to_other_list) ])
+            if self.l_repulsion_fun is not None:
+                repulse = self.l_repulsion_fun(repulse)
             c += self.repulsion_strength * repulse
 
         # Attraction (based on distance to own)
         if self.attraction_number > 0 and self.attraction_strength != 0:
             distance_to_own[distance_to_own<=0] = np.nan # remove invalids
             idx_list = np.argpartition(distance_to_own, min(self.attraction_number, distance_to_own.shape[1]-1), axis=1)
-            attract = np.array([self.attraction_reduce(d[i[:self.attraction_number]]) for i, d in zip(idx_list,distance_to_own)])
-            if self.attraction_fun is not None:
-                attract = self.attraction_fun(attract)
+            attract = np.array([self.l_attraction_reduce(d[i[:self.attraction_number]]) for i, d in zip(idx_list,distance_to_own)])
+            if self.l_attraction_fun is not None:
+                attract = self.l_attraction_fun(attract)
             attract = np.tile(attract,(c.shape[0],1))
             c += self.attraction_strength * attract
             
         # Return coefficients
-        if self.c_transformation_fun is not None:
-            c = self.c_transformation_fun(c)
+        if self.l_c_transformation_fun is not None:
+            c = self.l_c_transformation_fun(c)
         return c
     
     def _calc_distance_features(self, X, y):
