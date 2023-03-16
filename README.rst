@@ -62,7 +62,7 @@ Below is a short example.
   p_sample = clf.predict_proba(X_sample)
   
   # Plot result
-  plt.figure(figsize=(10,5))
+  plt.figure(figsize=(8,3))
   plt.plot(X_sample,y_sample,label="class prediction")
   plt.plot(X_sample,p_sample[:,1],label="class probability prediction")
   plt.scatter(X,y,c='r',label="train data")
@@ -70,6 +70,9 @@ Below is a short example.
   plt.ylabel("label / probability")
   plt.legend()
   plt.show()
+
+.. image:: https://raw.githubusercontent.com/RaoulHeese/casimac/master/docs/source/_static/plot.png
+    :align: center  
 
 📖 **Citation**
 
