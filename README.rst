@@ -97,3 +97,5 @@ If you find this code useful, please consider citing:
 **License**
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+*This project is currently not under development and is not actively maintained.*
