@@ -76,7 +76,7 @@ Below is a short example.
 
 📖 **Citation**
 
-If you find this code useful, please consider citing:
+If you find this code useful, please consider citing `Calibrated simplex-mapping classification <https://doi.org/10.1371/journal.pone.0279876>`_:
 
 .. code-block::
 	 
